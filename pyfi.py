@@ -1,30 +1,142 @@
 from wifi import Cell, Scheme
+from wifi.exceptions import InterfaceError
 
-cells = Cell.all('wlan0')
+import datetime, os, json, signal
+from threading import Thread, Event
 
-for cell in cells:
+NETWORK_INTERFACE = 'wlan0'
+LOG_LOCATION = '/var/log/pyfi/'
+SAMPLE_INTERVAL_SECONDS = 2
 
-	print('ssid %s', cell.ssid)
-	print('signal %s', cell.signal)
-	print('quality %s', cell.quality)
-	print('frequency %s', cell.frequency)
-	print('bitrates %s', cell.bitrates)
-	print('encrypted %s', cell.encrypted)
-	if cell.encrypted == True:
-		print('encryption_type %s', cell.encryption_type)
-	print('channel %s', cell.channel)
-	print('address %s', cell.address)
-	print('mode %s', cell.mode)
+def networks_file_path():
+	return LOG_LOCATION + 'networks.json'
 
+def network_states_file_path():
+	return LOG_LOCATION + 'network_states.json'
 
-'''
-cell = Cell.all('wlan0')[0]
->>> scheme = Scheme.for_cell('wlan0', 'home', cell)
->>> scheme.save()
->>> scheme.activate()
+def new_network_state():
 
-Once you have a scheme saved, you can retrieve it using Scheme.find().
+	return {
+		'time' : [],
+		'signal' : [],
+		'quality' : []
+	}
 
->>> scheme = Scheme.find('wlan0', 'home')
->>> scheme.activate()
-'''
+def append_to_network_state(state, time, signal, quality):
+
+	state['time'].append(time)
+	state['signal'].append(signal)
+	state['quality'].append(quality)
+
+def new_network(address, ssid, frequency, encrypted, encryption_type, mode, bit_rates):
+		
+	network = { 'address' : address,
+		'ssid' : ssid,
+		'frequency' : frequency,
+		'encrypted' : encrypted, 
+		'encryption_type': encryption_type,
+		'mode' : mode,
+		'bit_rates' : bit_rates
+		}
+
+	return network
+
+def render_network_key(ssid, address):
+	return ssid + ':' + address
+
+network_states = {}
+networks = {}
+
+def scan():
+
+	# take sample
+	
+	cells = Cell.all(NETWORK_INTERFACE)
+	timestamp = str(datetime.datetime.now())
+
+	ssids = []
+
+	# update data set
+
+	for cell in cells:
+
+		ssids.append(cell.ssid)
+
+		# create new
+
+		network_key = render_network_key(cell.ssid, cell.address) 
+
+		if network_key not in networks.keys():
+
+			network = new_network(cell.address, 
+				cell.ssid, 
+				cell.frequency, 
+				cell.encrypted, 
+				cell.encryption_type if cell.encrypted else None, 
+				cell.mode, 
+				cell.bitrates
+				)
+
+			networks[network_key] = network
+			network_states[network_key] = new_network_state()
+
+		# append to state series
+
+		network_state = network_states[network_key]
+		append_to_network_state(network_state, timestamp, cell.signal, cell.quality)
+
+	print('%i active networks' % len(ssids))
+	for ssid in sorted(ssids):
+		print(ssid)
+
+def get_logger():
+
+	if not os.path.isdir(LOG_LOCATION):
+		os.mkdir(LOG_LOCATION)
+
+	def logger():
+		
+		networks_json = json.dumps(networks)
+		with open(networks_file_path(), 'wt') as networks_file:
+			networks_file.write(networks_json)
+
+		network_state_json = json.dumps(network_states)
+		with open(network_states_file_path(), 'wt') as network_states_file:
+			network_states_file.write(network_state_json)
+
+	return logger
+
+exit_mutex = False
+
+class ScanThreadWorker(Thread):
+
+    def __init__(self, event):
+
+        Thread.__init__(self)
+        self.stopped = event
+
+        self.log = get_logger()
+
+    def run(self):
+        
+        while not self.stopped.wait(SAMPLE_INTERVAL_SECONDS):
+            
+            try:
+            	scan()
+            	self.log()
+            	print('%i networks found' % len(networks.keys()))
+
+            except InterfaceError as e:
+            	print(e)
+
+stopFlag = Event()
+thread = ScanThreadWorker(stopFlag)
+thread.start()
+
+print('HIT ENTER TO EXIT')
+discard = input()
+stopFlag.set()
+
+print('networks found:')
+for ssid in sorted([network['ssid'] for network in networks.values()]):
+	print(ssid)
