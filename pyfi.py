@@ -8,6 +8,9 @@ NETWORK_INTERFACE = 'wlan0'
 LOG_LOCATION = '/var/log/pyfi/'
 SAMPLE_INTERVAL_SECONDS = 2
 
+def cls():
+	print('\r\n'*80)
+
 def networks_file_path():
 	return LOG_LOCATION + 'networks.json'
 
@@ -87,7 +90,7 @@ def scan():
 
 	print('%i active networks' % len(ssids))
 	for ssid in sorted(ssids):
-		print(ssid)
+		print('- ' + ssid)
 
 def get_logger():
 
@@ -110,33 +113,65 @@ exit_mutex = False
 
 class ScanThreadWorker(Thread):
 
-    def __init__(self, event):
+	def __init__(self, event):
 
-        Thread.__init__(self)
-        self.stopped = event
+		Thread.__init__(self)
+		self.stopped = event
 
-        self.log = get_logger()
+		self.log = get_logger()
 
-    def run(self):
-        
-        while not self.stopped.wait(SAMPLE_INTERVAL_SECONDS):
-            
-            try:
-            	scan()
-            	self.log()
-            	print('%i networks found' % len(networks.keys()))
+	def run(self):
 
-            except InterfaceError as e:
-            	print(e)
+		log = True
+		
+		while not self.stopped.wait(SAMPLE_INTERVAL_SECONDS):
 
-stopFlag = Event()
-thread = ScanThreadWorker(stopFlag)
-thread.start()
+			cls()
 
-print('HIT ENTER TO EXIT')
-discard = input()
-stopFlag.set()
+			print('HIT ENTER TO EXIT')
+			print('sampling frequency = 1 / {0} Hz'.format(SAMPLE_INTERVAL_SECONDS))
 
-print('networks found:')
-for ssid in sorted([network['ssid'] for network in networks.values()]):
-	print(ssid)
+			print()
+
+			print(datetime.datetime.now())
+			
+			try:
+				scan()
+			except InterfaceError as e:
+				print('InterfaceError encountered during scanning')
+				print(e)
+				continue
+
+			print('%i networks found in total' % len(networks.keys()))
+
+			if not log:
+				print('logging disabled')
+				continue
+
+			try:
+				self.log()
+			except PermissionError as e:
+				print('permission error during attempt to log')
+				print(e)
+				log = False            	
+
+
+def sample():
+
+	stopFlag = Event()
+	thread = ScanThreadWorker(stopFlag)
+	thread.start()
+
+	discard = input()
+	stopFlag.set()
+
+	cls()
+	print('networks found:')
+	for ssid in sorted([network['ssid'] for network in networks.values()]):
+		print(ssid)
+
+
+def analyse():
+	pass
+
+sample()

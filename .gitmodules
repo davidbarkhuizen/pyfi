@@ -1,0 +1,3 @@
+[submodule "pygpx"]
+	path = pygpx
+	url = https://github.com/davidbarkhuizen/pygpx.git
