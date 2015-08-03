@@ -1,21 +1,10 @@
+import common
+
 from wifi import Cell, Scheme
 from wifi.exceptions import InterfaceError
 
 import datetime, os, json, signal
 from threading import Thread, Event
-
-NETWORK_INTERFACE = 'wlan0'
-LOG_LOCATION = '/var/log/pyfi/'
-SAMPLE_INTERVAL_SECONDS = 2
-
-def cls():
-	print('\r\n'*80)
-
-def networks_file_path():
-	return LOG_LOCATION + 'networks.json'
-
-def network_states_file_path():
-	return LOG_LOCATION + 'network_states.json'
 
 def new_network_state():
 
@@ -44,9 +33,6 @@ def new_network(address, ssid, frequency, encrypted, encryption_type, mode, bit_
 
 	return network
 
-def render_network_key(ssid, address):
-	return ssid + ':' + address
-
 network_states = {}
 networks = {}
 
@@ -54,7 +40,7 @@ def scan():
 
 	# take sample
 	
-	cells = Cell.all(NETWORK_INTERFACE)
+	cells = Cell.all(common.NETWORK_INTERFACE)
 	timestamp = str(datetime.datetime.now())
 
 	ssids = []
@@ -67,7 +53,7 @@ def scan():
 
 		# create new
 
-		network_key = render_network_key(cell.ssid, cell.address) 
+		network_key = common.render_network_key(cell.ssid, cell.address) 
 
 		if network_key not in networks.keys():
 
@@ -94,17 +80,17 @@ def scan():
 
 def get_logger():
 
-	if not os.path.isdir(LOG_LOCATION):
-		os.mkdir(LOG_LOCATION)
+	if not os.path.isdir(common.LOG_LOCATION):
+		os.mkdir(common.LOG_LOCATION)
 
 	def logger():
 		
 		networks_json = json.dumps(networks)
-		with open(networks_file_path(), 'wt') as networks_file:
+		with open(common.networks_file_path(), 'wt') as networks_file:
 			networks_file.write(networks_json)
 
 		network_state_json = json.dumps(network_states)
-		with open(network_states_file_path(), 'wt') as network_states_file:
+		with open(common.network_states_file_path(), 'wt') as network_states_file:
 			network_states_file.write(network_state_json)
 
 	return logger
@@ -124,12 +110,12 @@ class ScanThreadWorker(Thread):
 
 		log = True
 		
-		while not self.stopped.wait(SAMPLE_INTERVAL_SECONDS):
+		while not self.stopped.wait(common.SAMPLE_INTERVAL_SECONDS):
 
-			cls()
+			common.cls()
 
 			print('HIT ENTER TO EXIT')
-			print('sampling frequency = 1 / {0} Hz'.format(SAMPLE_INTERVAL_SECONDS))
+			print('sampling frequency = 1 / {0} Hz'.format(common.SAMPLE_INTERVAL_SECONDS))
 
 			print()
 
@@ -169,9 +155,5 @@ def sample():
 	print('networks found:')
 	for ssid in sorted([network['ssid'] for network in networks.values()]):
 		print(ssid)
-
-
-def analyse():
-	pass
 
 sample()

@@ -1,1 +1,1 @@
-python3 pyfi.py
+python3 gpx_augment.py
