@@ -12,3 +12,17 @@ functionality
 ---- for each network SSID
 
 
+INSTALLATION
+
+1. pip
+python2:
+$ sudo apt-get install python-pip
+python3:
+$ sudo apt-get install python3-pip
+
+2. python-wifi
+python2:
+$ pip install wifi
+python3:
+$ pip3 install wifi
+

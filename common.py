@@ -1,7 +1,7 @@
-NETWORK_INTERFACE = 'wlan0'
+# NETWORK_INTERFACE = 'wlan0'
+NETWORK_INTERFACE = 'wlp1s0'
 
-# LOG_LOCATION = '/var/log/pyfi/'
-LOG_LOCATION = '/home/david/Documents/pyfi/vm/'
+LOG_LOCATION = 'pyfi.log'
 
 SAMPLE_INTERVAL_SECONDS = 5
 

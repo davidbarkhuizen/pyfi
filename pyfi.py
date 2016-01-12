@@ -4,7 +4,10 @@ from wifi import Cell, Scheme
 from wifi.exceptions import InterfaceError
 
 import datetime, os, json, signal
-from threading import Thread, Event
+
+from console import NonBlockingConsole
+
+import time
 
 def new_network_state():
 
@@ -95,27 +98,19 @@ def get_logger():
 
 	return logger
 
-exit_mutex = False
 
-class ScanThreadWorker(Thread):
+def run_scans():
 
-	def __init__(self, event):
+	log = get_logger()
 
-		Thread.__init__(self)
-		self.stopped = event
+	with NonBlockingConsole() as nb_console:
 
-		self.log = get_logger()
-
-	def run(self):
-
-		log = True
-		
-		while not self.stopped.wait(common.SAMPLE_INTERVAL_SECONDS):
+		while (True):
 
 			common.cls()
 
 			print('HIT ENTER TO EXIT')
-			print('sampling frequency = 1 / {0} Hz'.format(common.SAMPLE_INTERVAL_SECONDS))
+			print('sampling period = {0} s'.format(common.SAMPLE_INTERVAL_SECONDS))
 
 			print()
 
@@ -125,33 +120,36 @@ class ScanThreadWorker(Thread):
 				scan()
 			except InterfaceError as e:
 				print('InterfaceError encountered during scanning')
-				print(e)
-				continue
+				msg = str(e)
+				print(msg)
+			except SyntaxError as se:
+				print(se)
+				local_stop = True
+				print('stopping')
+				return
 
 			print('%i networks found in total' % len(networks.keys()))
 
 			if not log:
 				print('logging disabled')
-				continue
 
 			try:
-				self.log()
+				log()
 			except PermissionError as e:
 				print('permission error during attempt to log')
 				print(e)
-				log = False            	
+				log = False   
 
+			time.sleep(5)
+
+			if nb_console.get_key_presses(): 
+				break        	
 
 def sample():
 
-	stopFlag = Event()
-	thread = ScanThreadWorker(stopFlag)
-	thread.start()
+	run_scans()
 
-	discard = input()
-	stopFlag.set()
-
-	cls()
+	common.cls()
 	print('networks found:')
 	for ssid in sorted([network['ssid'] for network in networks.values()]):
 		print(ssid)
