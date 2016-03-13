@@ -1,0 +1,5 @@
+{
+	"networkInterface" : "wlp1s0",
+	"logFilePath" : "~/pyfi.network.log",
+	"waitIntervalInSeconds" : 2
+}

@@ -1,40 +1,14 @@
-import common
-
-from wifi import Cell, Scheme
-from wifi.exceptions import InterfaceError
-
-import datetime, os, json, signal
+import datetime
+import os
+import json
+import wifitools
 
 from console import NonBlockingConsole
 
 import time
 
-def new_network_state():
-
-	return {
-		'time' : [],
-		'signal' : [],
-		'quality' : []
-	}
-
-def append_to_network_state(state, time, signal, quality):
-
-	state['time'].append(time)
-	state['signal'].append(signal)
-	state['quality'].append(quality)
-
-def new_network(address, ssid, frequency, encrypted, encryption_type, mode, bit_rates):
-		
-	network = { 'address' : address,
-		'ssid' : ssid,
-		'frequency' : frequency,
-		'encrypted' : encrypted, 
-		'encryption_type': encryption_type,
-		'mode' : mode,
-		'bit_rates' : bit_rates
-		}
-
-	return network
+def render_network_key(ssid, address):
+	return ssid + ':' + address
 
 network_states = {}
 networks = {}
@@ -42,52 +16,39 @@ networks = {}
 def scan():
 
 	# take sample
-	
-	cells = Cell.all(common.NETWORK_INTERFACE)
-	timestamp = str(datetime.datetime.now())
 
-	ssids = []
 
-	# update data set
+	f = open('network_summary.log', 'wt')
 
-	for cell in cells:
+	for key in networks.keys():
 
-		ssids.append(cell.ssid)
+		net = networks[key]
 
-		# create new
+		signal = active_net_signal[key] if net in active_networks else ''
+		quality = active_net_quality[key] if net in active_networks else ''
 
-		network_key = common.render_network_key(cell.ssid, cell.address) 
+		s = '{0:32} {1:20}\n{2:10} {3:6} {4:8} {5:8} {6:5} {7:5}'.format(net['ssid'], net['address'], net['frequency'], str(net['encrypted']), net['encryption_type'], net['mode'], signal, quality)
 
-		if network_key not in networks.keys():
+		if net in active_networks:
+			s = '* ' + s
+		else:
+			s = '  ' + s
 
-			network = new_network(cell.address, 
-				cell.ssid, 
-				cell.frequency, 
-				cell.encrypted, 
-				cell.encryption_type if cell.encrypted else None, 
-				cell.mode, 
-				cell.bitrates
-				)
+		print(s)
+		f.write(s + '\n')
 
-			networks[network_key] = network
-			network_states[network_key] = new_network_state()
-
-		# append to state series
-
-		network_state = network_states[network_key]
-		append_to_network_state(network_state, timestamp, cell.signal, cell.quality)
-
-	print('%i active networks' % len(ssids))
-	for ssid in sorted(ssids):
-		print('- ' + ssid)
+	f.close()
 
 def get_logger():
 
-	if not os.path.isdir(common.LOG_LOCATION):
-		os.mkdir(common.LOG_LOCATION)
+	'''
+	if not os.path.isdir(log_file_path):
+		os.mkdir(log_file_path)
+	'''
 
 	def logger():
-		
+
+		'''
 		networks_json = json.dumps(networks)
 		with open(common.networks_file_path(), 'wt') as networks_file:
 			networks_file.write(networks_json)
@@ -95,9 +56,15 @@ def get_logger():
 		network_state_json = json.dumps(network_states)
 		with open(common.network_states_file_path(), 'wt') as network_states_file:
 			network_states_file.write(network_state_json)
+		'''
+		pass
 
 	return logger
 
+# ----------------------------------------
+
+def cls():
+	print('\r\n'*80)
 
 def run_scans():
 
@@ -107,15 +74,11 @@ def run_scans():
 
 		while (True):
 
-			common.cls()
-
 			print('HIT ENTER TO EXIT')
-			print('sampling period = {0} s'.format(common.SAMPLE_INTERVAL_SECONDS))
-
-			print()
-
+			print('')
 			print(datetime.datetime.now())
-			
+			print('')
+
 			try:
 				scan()
 			except InterfaceError as e:
@@ -128,30 +91,26 @@ def run_scans():
 				print('stopping')
 				return
 
-			print('%i networks found in total' % len(networks.keys()))
+			print('')
+			print('{0} networks found'.format(len(networks.keys())))
 
 			if not log:
 				print('logging disabled')
 
 			try:
 				log()
-			except PermissionError as e:
+			except Exception as e:
 				print('permission error during attempt to log')
 				print(e)
-				log = False   
+				log = None
 
-			time.sleep(5)
+			time.sleep(common.SAMPLE_INTERVAL_SECONDS)
 
-			if nb_console.get_key_presses(): 
-				break        	
+			if nb_console.get_key_presses():
+				break
 
 def sample():
 
 	run_scans()
-
-	common.cls()
-	print('networks found:')
-	for ssid in sorted([network['ssid'] for network in networks.values()]):
-		print(ssid)
 
 sample()
